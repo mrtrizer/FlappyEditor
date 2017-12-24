@@ -1,0 +1,9 @@
+build*
+*.user
+*.pyc
+**/generated
+**/flappy_cache
+**/compile_commands.json
+**/.DS_Store
+**/node_modules
+**/package-lock.json
