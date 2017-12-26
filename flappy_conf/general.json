@@ -3,6 +3,9 @@
     "modules": [
         {
             "path": "../FlappyEngine/modules/V8JSEngine"
+        },
+        {
+            "path": "../FlappyEngine/modules/Sdl2Manager"
         }
     ],
     "res_dirs": [
