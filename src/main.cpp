@@ -76,6 +76,7 @@ int main(int argc, char** argv) {
         rootEntity->createComponent<TextResFactory>();
         rootEntity->createComponent<ResManager<TextRes>> ();
 
+        rootEntity->component<V8JSManager>()->registerWrappers(editorWrappers);
         rootEntity->component<V8JSManager>()->registerWrappers(projectWrappers);
 
         auto childEntity = rootEntity->createEntity();
@@ -88,8 +89,10 @@ int main(int argc, char** argv) {
             auto value = jsComponent->call("getInternalValue");
             LOGI("internalValue: %d", value.as<int>());
             jsComponent->call("setInternalValue", 700);
-            value = jsComponent->call("getInternalValue");
-            LOGI("internalValue: %d", value.as<int>());
+            // WARNING: You will get crash if you try to set value second time!!
+            // I have no idea why yet.
+            auto value1 = jsComponent->call("getInternalValue");
+            LOGI("internalValue: %d", value1.as<int>());
         }
 
         // Scene
