@@ -1,0 +1,5 @@
+{
+    "cxx":{
+        "type": "shared_lib"
+    }
+}

@@ -36,13 +36,18 @@ typedef ProjectWrapper* (*InitProjectFunc)();
 
 int main(int argc, char** argv) {
 
+    if (argc < 2) {
+        std::cout << "Pass dynamic library of a project as argument." << std::endl;
+        return 10;
+    }
+
     PosixApplication application;
     auto currentThread = std::make_shared<DesktopThread>([argc, argv](SafePtr<Entity> rootEntity) {
 
         rootEntity->createComponent<Sdl2Manager>();
         rootEntity->createComponent<ScreenManager>(600, 600);
 
-        void* handle = dlopen("../../test_project/generated/build-cmake-Desktop_Qt_5_9_1_clang_64bit-Default/libTestProject.dylib", RTLD_NOW);
+        void* handle = dlopen(argv[1], RTLD_NOW);
         if (!handle) {
             std::cout << "Could not open the library" << std::endl;
             return 1;
