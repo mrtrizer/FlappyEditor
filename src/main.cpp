@@ -29,6 +29,14 @@ using namespace rttr;
 
 std::shared_ptr<Entity> rootEntity;
 
+type findType(const library& lib, const std::string& name) {
+    for (auto t : lib.get_types()) {
+        std::cout << "Name: " <<  t.get_name() << std::endl;
+        if (t.get_name() == name)
+            return t;
+    }
+}
+
 int main(int argc, char** argv) {
 
     if (argc < 2) {
@@ -45,9 +53,20 @@ int main(int argc, char** argv) {
         library lib(argv[1]); // file suffix is not needed, will be automatically appended
         lib.load();
         std::cout << "Loaded: " << lib.is_loaded() << std::endl;
-        for (auto t : lib.get_types()) {
-            std::cout << "Name: " <<  t.get_name() << std::endl;
-        }
+
+        type internalComponentT = findType(lib, "InternalComponent");
+
+        std::cout << "Name: " <<  internalComponentT.get_name() << std::endl;
+        for (auto m: internalComponentT.get_methods())
+            std::cout << "Method: " <<  m.get_name() << std::endl;
+        auto internalComponent = internalComponentT.create().get_value<std::shared_ptr<ComponentBase>>();
+
+        rootEntity->addComponent(internalComponent);
+
+        auto component = rootEntity->componentById(TypeId<ComponentBase>("InternalComponent"));
+        internalComponentT.get_method("setValue").invoke(internalComponent, 200);
+        int value = internalComponentT.get_method("getValue").invoke(internalComponent).to_int();
+        std::cout << "Result: " << value << std::endl;
 
         rootEntity->createComponent<ResRepositoryManager>("./resources");
         rootEntity->createComponent<StdFileMonitorManager>();
