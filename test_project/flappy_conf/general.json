@@ -2,7 +2,7 @@
     "name":"TestProject",
     "modules": [
         {
-            "path":"../../FlappyEngine/modules/V8JSEngine"
+            "path":"../../FlappyEngine/modules/RTTRGenerator"
         }
     ],
     "cxx":{

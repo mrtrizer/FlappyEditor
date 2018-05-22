@@ -2,7 +2,7 @@
     "name":"FlappyEditor",
     "modules": [
         {
-            "path": "../FlappyEngine/modules/V8JSEngine"
+            "path": "../FlappyEngine/modules/RTTR"
         },
         {
             "path": "../FlappyEngine/modules/Sdl2Manager"
