@@ -22,20 +22,9 @@
 #include <GLRenderElementFactory.h>
 #include <ScreenManager.h>
 #include <ThreadManager.h>
-#include <rttr/library.h>
+#include <RTTRLibManager.h>
 
 using namespace flappy;
-using namespace rttr;
-
-std::shared_ptr<Entity> rootEntity;
-
-type findType(const library& lib, const std::string& name) {
-    for (auto t : lib.get_types()) {
-        std::cout << "Name: " <<  t.get_name() << std::endl;
-        if (t.get_name() == name)
-            return t;
-    }
-}
 
 int main(int argc, char** argv) {
 
@@ -50,24 +39,7 @@ int main(int argc, char** argv) {
         rootEntity->createComponent<Sdl2Manager>();
         rootEntity->createComponent<ScreenManager>(600, 600);
 
-        library lib(argv[1]); // file suffix is not needed, will be automatically appended
-        lib.load();
-        std::cout << "Loaded: " << lib.is_loaded() << std::endl;
-
-        type internalComponentT = findType(lib, "InternalComponent");
-
-        std::cout << "Name: " <<  internalComponentT.get_name() << std::endl;
-        for (auto m: internalComponentT.get_methods())
-            std::cout << "Method: " <<  m.get_name() << std::endl;
-        auto internalComponent = internalComponentT.create().get_value<std::shared_ptr<ComponentBase>>();
-
-        rootEntity->addComponent(internalComponent);
-
-        auto component = rootEntity->componentById(TypeId<ComponentBase>("InternalComponent"));
-        internalComponentT.get_method("setValue").invoke(internalComponent, 200);
-        int value = internalComponentT.get_method("getValue").invoke(internalComponent).to_int();
-        std::cout << "Result: " << value << std::endl;
-
+        auto rttrLibManager = rootEntity->createComponent<RTTRLibManager>();
         rootEntity->createComponent<ResRepositoryManager>("./resources");
         rootEntity->createComponent<StdFileMonitorManager>();
         rootEntity->createComponent<StdFileLoadManager>();
@@ -80,6 +52,23 @@ int main(int argc, char** argv) {
         sceneEntity->component<CameraComponent>()->setSize({600, 600});
         sceneEntity->component<GLRenderManager>();
         sceneEntity->component<GLRenderElementFactory>();
+
+        // Library playground
+        auto& library = rttrLibManager->getLibrary(argv[1]);
+        sceneEntity->addComponent(library.createComponent("InternalComponent"));
+
+        auto componentVariant = library.toVariant(sceneEntity->componentById(TypeId<ComponentBase>("flappy::InternalComponent")));
+        for (auto m: componentVariant.get_type().get_methods()) {
+            std::cout << "Method: " <<  m.get_name() << " (";
+            for (auto p: m.get_parameter_infos()) {
+                std::cout <<  p.get_type().get_name() << " ";
+            }
+            std::cout << ") => " << m.get_return_type().get_name();
+            std::cout << std::endl;
+        }
+        componentVariant.get_type().get_method("setValue").invoke(componentVariant, 200);
+        int value = componentVariant.get_type().get_method("getValue").invoke(componentVariant).to_int();
+        std::cout << "Result: " << value << std::endl;
     });
     return application.runThread(currentThread);
 }
