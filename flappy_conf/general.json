@@ -5,7 +5,16 @@
             "path": "../FlappyEngine/modules/RTTR"
         },
         {
+            "path": "../FlappyEngine/modules/TinyProcessLibrary"
+        },
+        {
             "path": "../FlappyEngine/modules/Sdl2Manager"
+        },
+        {
+            "path": "../FlappyEngine/modules/ResManager"
+        },
+        {
+            "path": "../FlappyEngine/modules/Std"
         }
     ],
     "res_dirs": [
