@@ -5,9 +5,6 @@
             "path": "../FlappyEngine/modules/RTTR"
         },
         {
-            "path": "../FlappyEngine/modules/FFI"
-        },
-        {
             "path": "../FlappyEngine/modules/TinyProcessLibrary"
         },
         {

@@ -1,7 +1,5 @@
 #include "ProjectManager.h"
 
-#include <ffi.h>
-
 #include <Entity.h>
 #include <IFileMonitorManager.h>
 
