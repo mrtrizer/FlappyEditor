@@ -58,6 +58,44 @@ static json serializeEntity(const SafePtr<Entity>& entity) {
     return jsonEntity;
 }
 
+class Property {
+public:
+    Property(rttr::method setter, rttr::method getter)
+        : m_setter(setter)
+        , m_getter(getter)
+    {}
+    void setValue(rttr::variant variant, const std::string& value);
+    std::string getValue(rttr::variant variant);
+private:
+    rttr::method m_setter;
+    rttr::method m_getter;
+};
+
+std::vector<rttr::method> findMethods(rttr::type componentType, std::string name, rttr::type returnType) {
+    for (auto method : componentType.get_methods()) {
+        if (method.get_return_type() == returnType && method.get_name() == name)
+            return {method};
+    }
+    return {};
+}
+
+std::unordered_map<std::string, Property> scanProperties(rttr::type componentType) {
+    std::unordered_map<std::string, Property> properties;
+    for (auto method : componentType.get_methods()) {
+        auto args = method.get_parameter_infos();
+        auto methodName = method.get_name().to_string();
+        if (args.size() == 1 && methodName.substr(0, 3) == "set") {
+            auto argType = args.begin()->get_type();
+            auto getterName = methodName.substr(3);
+            getterName[0] = tolower(getterName[0]);
+            auto getterMethods = findMethods(componentType, getterName, argType);
+            if (getterMethods.size() == 1)
+                properties.emplace(getterName, Property(method, getterMethods[0]));
+        }
+    }
+    return properties;
+}
+
 static std::shared_ptr<Entity> loadEntity(const json& jsonEntity) {
     auto entity = std::make_shared<Entity>();
     auto componentsIter = jsonEntity.find("components");
@@ -70,24 +108,28 @@ static std::shared_ptr<Entity> loadEntity(const json& jsonEntity) {
             if (component != nullptr) {
                 // TODO: Setup properties
                 entity->addComponent(component);
-            }
-            for (auto fieldIter = jsonComponent.begin(); fieldIter != jsonComponent.end(); fieldIter++) {
-                if (fieldIter.key() != "type") {
-                    LOGI("method: %s", fieldIter.key().c_str());
-                    int value = fieldIter.value().get<int>();
 
-                    auto componentPointer = RTTRService::instance().toVariant(component);
-                    auto componentType = componentPointer.get_type();
+                auto componentPointer = RTTRService::instance().toVariant(component);
+                auto componentType = componentPointer.get_type();
+                auto properties = scanProperties(componentType);
+                for (auto propertyPair : properties)
+                    LOGI("property: %s", propertyPair.first.c_str());
 
-                    auto method = componentType.get_method(fieldIter.key());
-                    auto args = method.get_parameter_infos();
-                    for (auto arg : args) {
-                        LOGI("arg: %s", arg.get_type().get_name().to_string().c_str());
+                for (auto fieldIter = jsonComponent.begin(); fieldIter != jsonComponent.end(); fieldIter++) {
+                    if (fieldIter.key() != "type") {
+                        LOGI("method: %s", fieldIter.key().c_str());
+                        int value = fieldIter.value().get<int>();
+
+                        auto method = componentType.get_method(fieldIter.key());
+                        auto args = method.get_parameter_infos();
+                        for (auto arg : args) {
+                            LOGI("arg: %s", arg.get_type().get_name().to_string().c_str());
+                        }
+
+                        std::vector<rttr::argument> arguments;
+                        arguments.push_back(rttr::argument(value));
+                        method.invoke_variadic(componentPointer, arguments);
                     }
-
-                    std::vector<rttr::argument> arguments;
-                    arguments.push_back(rttr::argument(value));
-                    method.invoke_variadic(componentPointer, arguments);
                 }
             }
         }
