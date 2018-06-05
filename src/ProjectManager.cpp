@@ -1,5 +1,7 @@
 #include "ProjectManager.h"
 
+#include <ffi.h>
+
 #include <Entity.h>
 #include <IFileMonitorManager.h>
 
@@ -70,6 +72,25 @@ static std::shared_ptr<Entity> loadEntity(const json& jsonEntity) {
             if (component != nullptr) {
                 // TODO: Setup properties
                 entity->addComponent(component);
+            }
+            for (auto fieldIter = jsonComponent.begin(); fieldIter != jsonComponent.end(); fieldIter++) {
+                if (fieldIter.key() != "type") {
+                    LOGI("method: %s", fieldIter.key().c_str());
+                    int value = fieldIter.value().get<int>();
+
+                    auto componentPointer = RTTRService::instance().toVariant(component);
+                    auto componentType = componentPointer.get_type();
+
+                    auto method = componentType.get_method(fieldIter.key());
+                    auto args = method.get_parameter_infos();
+                    for (auto arg : args) {
+                        LOGI("arg: %s", arg.get_type().get_name().to_string().c_str());
+                    }
+
+                    std::vector<rttr::argument> arguments;
+                    arguments.push_back(rttr::argument(value));
+                    method.invoke_variadic(componentPointer, arguments);
+                }
             }
         }
     }
