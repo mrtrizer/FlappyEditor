@@ -16,48 +16,6 @@
 using namespace flappy;
 using json = nlohmann::json;
 
-ProjectManager::ProjectManager(const std::string& projectPath)
-    : m_root(std::make_shared<Entity>())
-{
-    auto libraryPath = projectPath + "/generated/cmake/build/libTestProject.dylib";
-
-    addDependency(IFileMonitorManager::id());
-
-    events()->subscribe([this, libraryPath, projectPath](InitEvent) {
-        entity()->createComponent<ResRepositoryManager>(projectPath + "/generated/cmake/resources");
-        entity()->createComponent<StdFileMonitorManager>();
-        entity()->createComponent<StdFileLoadManager>();
-        entity()->createComponent<TextResFactory>();
-        entity()->createComponent<ResManager<TextRes>> ();
-    });
-
-    events()->subscribeAll([this] (const EventHandle& eventHandle) {
-        if (m_root && eventHandle.id() != GetTypeId<EventHandle, EventHandle>::value())
-            m_root->events()->post(eventHandle);
-    });
-
-    RTTRService::instance().loadLibrary(libraryPath);
-}
-
-static json serializeEntity(const SafePtr<Entity>& entity) {
-    json jsonEntity;
-    std::vector<json> jsonComponents;
-    auto components = entity->findComponents<ComponentBase>();
-    for (auto component : components) {
-        json jsonComponent = { { "type", component->componentId().name() } };
-        jsonComponents.push_back(jsonComponent);
-    }
-    jsonEntity["components"] = jsonComponents;
-    auto nextEntities = entity->findEntities([](const auto&){ return true; });
-    std::vector<json> jsonEntities;
-    for (auto nextEntity : nextEntities) {
-        jsonEntity = serializeEntity(nextEntity);
-        jsonEntities.push_back(jsonEntity);
-    }
-    jsonEntity["entities"] = jsonEntities;
-    return jsonEntity;
-}
-
 class Property {
 public:
     Property(rttr::method setter, rttr::method getter)
@@ -81,7 +39,7 @@ private:
     rttr::method m_getter;
 };
 
-std::vector<rttr::method> findMethods(rttr::type componentType, std::string name, rttr::type returnType) {
+static std::vector<rttr::method> findMethods(rttr::type componentType, std::string name, rttr::type returnType) {
     for (auto method : componentType.get_methods()) {
         if (method.get_return_type() == returnType && method.get_name() == name)
             return {method};
@@ -89,7 +47,7 @@ std::vector<rttr::method> findMethods(rttr::type componentType, std::string name
     return {};
 }
 
-std::unordered_map<std::string, Property> scanProperties(rttr::type componentType) {
+static std::unordered_map<std::string, Property> scanProperties(rttr::type componentType) {
     std::unordered_map<std::string, Property> properties;
     for (auto method : componentType.get_methods()) {
         auto args = method.get_parameter_infos();
@@ -104,6 +62,64 @@ std::unordered_map<std::string, Property> scanProperties(rttr::type componentTyp
         }
     }
     return properties;
+}
+
+ProjectManager::ProjectManager(const std::string& projectPath)
+    : m_root(std::make_shared<Entity>())
+{
+    auto libraryPath = projectPath + "/generated/cmake/build/libTestProject.dylib";
+
+    addDependency(IFileMonitorManager::id());
+
+    events()->subscribe([this, libraryPath, projectPath](InitEvent) {
+        entity()->createComponent<ResRepositoryManager>(projectPath + "/generated/cmake/resources");
+        entity()->createComponent<StdFileMonitorManager>();
+        entity()->createComponent<StdFileLoadManager>();
+        entity()->createComponent<TextResFactory>();
+        entity()->createComponent<ResManager<TextRes>> ();
+    });
+
+    events()->subscribeAll([this] (const EventHandle& eventHandle) {
+        if (m_root && eventHandle.id() != GetTypeId<EventHandle, EventHandle>::value())
+            m_root->events()->post(eventHandle);
+    });
+
+    events()->subscribe([this, libraryPath] (const UpdateEvent&) {
+        if (!m_loaded)
+            reload(libraryPath);
+    });
+
+    RTTRService::instance().loadLibrary(libraryPath);
+    m_loaded = true;
+}
+
+static json serializeEntity(const SafePtr<Entity>& entity) {
+    if (!entity)
+        return {};
+    json jsonEntity;
+    std::vector<json> jsonComponents;
+    auto components = entity->findComponents<ComponentBase>();
+    for (auto component : components) {
+        json jsonComponent = { { "type", component->componentId().name() } };
+
+        auto componentPointer = RTTRService::instance().toVariant(component);
+        auto componentType = componentPointer.get_type();
+        auto properties = scanProperties(componentType);
+        for (auto property : properties) {
+            jsonComponent[property.first] = json::parse(property.second.getValue(componentPointer));
+        }
+
+        jsonComponents.push_back(jsonComponent);
+    }
+    jsonEntity["components"] = jsonComponents;
+    auto nextEntities = entity->findEntities([](const auto&){ return true; });
+    std::vector<json> jsonEntities;
+    for (auto nextEntity : nextEntities) {
+        jsonEntity = serializeEntity(nextEntity);
+        jsonEntities.push_back(jsonEntity);
+    }
+    jsonEntity["entities"] = jsonEntities;
+    return jsonEntity;
 }
 
 static std::shared_ptr<Entity> loadEntity(const json& jsonEntity) {
@@ -147,10 +163,18 @@ static std::shared_ptr<Entity> loadEntity(const json& jsonEntity) {
 }
 
 void ProjectManager::reload(const std::string& libraryPath) {
-    auto serializedTree = serializeEntity(m_root);
-    m_root = nullptr;
-    RTTRService::instance().loadLibrary(libraryPath);
-    m_root = loadEntity(serializedTree);
+    if (m_root) {
+        m_serializedTree = serializeEntity(m_root);
+        m_root = nullptr;
+    }
+    m_loaded = false;
+    try {
+        RTTRService::instance().loadLibrary(libraryPath);
+        m_root = loadEntity(m_serializedTree);
+        m_loaded = true;
+    } catch (const std::exception&) {
+
+    }
 }
 
 void ProjectManager::loadFromJson(const json& jsonTree) {

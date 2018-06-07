@@ -18,10 +18,10 @@ static std::string bashify(const std::string command) {
     return ss.str();
 }
 
-static void runFlappyBuild(const std::string& projectPath) {
-    std::thread flappyBuildThread ([projectPath]() {
+static void runFlappyBuild(const std::string& projectPath, const std::string& scriptName) {
+    std::thread flappyBuildThread ([projectPath, scriptName]() {
         flappyBuildStarted = true;
-        Process process(bashify("flappy build cmake +editor"), projectPath, [](const char *bytes, size_t n) {
+        Process process(bashify("flappy " + scriptName + " cmake +editor"), projectPath, [](const char *bytes, size_t n) {
                 std::cout << std::string(bytes, n);
             }, [](const char *bytes, size_t n) {
                 std::cout << std::string(bytes, n);
@@ -31,6 +31,18 @@ static void runFlappyBuild(const std::string& projectPath) {
         std::cout << "flappy build returned: " << exit_status << " (" << (exit_status==0?"success":"failure") << ")" << std::endl;
     });
     flappyBuildThread.detach();
+}
+
+static void runProcess(const std::string& projectPath, const std::string& execPath, std::function<void(const char *bytes, size_t n)> callback) {
+    std::thread fsWatchThread ([projectPath, execPath, callback]() {
+        Process process(bashify(execPath), projectPath, callback,
+            [](const char *bytes, size_t n) {
+                std::cout << std::string(bytes, n);
+            });
+        auto exit_status=process.get_exit_status();
+        std::cout << "fswatch returned: " << exit_status << " (" << (exit_status==0?"success":"failure") << ")" << std::endl;
+    });
+    fsWatchThread.detach();
 }
 
 EditorManager::EditorManager(const std::string& projectPath)
@@ -44,21 +56,18 @@ EditorManager::EditorManager(const std::string& projectPath)
         if (manager<IFileMonitorManager>()->exists(libraryPath)) {
             m_projectRoot->createComponent<ProjectManager>(projectPath);
         } else {
-            runFlappyBuild(projectPath);
+            runFlappyBuild(projectPath, "build");
         }
-        std::thread fsWatchThread ([projectPath]() {
-            Process process(bashify("fswatch ./src ./res_src"), projectPath, [projectPath](const char *bytes, size_t n) {
-                    if (!flappyBuildStarted) {
-                        runFlappyBuild(projectPath);
-                    }
-                    std::cout << std::string(bytes, n);
-                }, [](const char *bytes, size_t n) {
-                    std::cout << std::string(bytes, n);
-                });
-            auto exit_status=process.get_exit_status();
-            std::cout << "fswatch returned: " << exit_status << " (" << (exit_status==0?"success":"failure") << ")" << std::endl;
+        runProcess(projectPath, "fswatch ./src", [projectPath](const char *bytes, size_t n) {
+            if (!flappyBuildStarted)
+                runFlappyBuild(projectPath, "build");
+            std::cout << std::string(bytes, n);
         });
-        fsWatchThread.detach();
+        runProcess(projectPath, "fswatch ./res_src", [projectPath](const char *bytes, size_t n) {
+            if (!flappyBuildStarted)
+                runFlappyBuild(projectPath, "pack_res");
+            std::cout << std::string(bytes, n);
+        });
     });
 
     events()->subscribeAll([this] (const EventHandle& eventHandle) {
@@ -69,7 +78,8 @@ EditorManager::EditorManager(const std::string& projectPath)
     });
 
     events()->subscribe([this, libraryPath](UpdateEvent) {
-        if (manager<IFileMonitorManager>()->changed(libraryPath)) {
+        auto fileMonitor = manager<IFileMonitorManager>();
+        if (fileMonitor->exists(libraryPath) && fileMonitor->changed(libraryPath)) {
             try {
                 if (m_projectRoot->findComponent<ProjectManager>() == nullptr)
                     m_projectRoot->createComponent<ProjectManager>(libraryPath);

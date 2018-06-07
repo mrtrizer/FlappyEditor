@@ -19,4 +19,6 @@ public:
 
 private:
     std::shared_ptr<flappy::Entity> m_root;
+    nlohmann::json m_serializedTree;
+    bool m_loaded;
 };
