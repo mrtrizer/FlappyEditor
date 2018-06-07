@@ -3,6 +3,7 @@
 #include <atomic>
 #include <Entity.h>
 #include <IFileMonitorManager.h>
+#include <IFileLoadManager.h>
 #include <process.hpp>
 
 #include "./ProjectManager.h"
@@ -80,7 +81,7 @@ EditorManager::EditorManager(const std::string& projectPath)
             m_projectRoot->events()->post(eventHandle);
     });
 
-    events()->subscribe([this, libraryPath](UpdateEvent) {
+    events()->subscribe([this, projectPath, libraryPath](UpdateEvent) {
         auto fileMonitor = manager<IFileMonitorManager>();
         if (fileMonitor->exists(libraryPath) && fileMonitor->changed(libraryPath)) {
             try {
@@ -92,6 +93,14 @@ EditorManager::EditorManager(const std::string& projectPath)
                 LOGE("%s", e.what());
             }
         }
+
+        std::string fullScenePath = projectPath + "/" + m_scenePath;
+        if (fileMonitor->exists(fullScenePath) && (fileMonitor->changed(fullScenePath) || m_updateScene)) {
+            auto sceneFileText = manager<IFileLoadManager>()->loadTextFile(fullScenePath);
+            auto jsonTree = nlohmann::json::parse(sceneFileText);
+            projectManager()->loadFromJson(jsonTree);
+            m_updateScene = false;
+        }
     });
 
     events()->subscribe([this, libraryPath](DeinitEvent) {
@@ -101,4 +110,9 @@ EditorManager::EditorManager(const std::string& projectPath)
 
 flappy::SafePtr<ProjectManager> EditorManager::projectManager() {
     return m_projectRoot != nullptr ? m_projectRoot->manager<ProjectManager>() : nullptr;
+}
+
+void EditorManager::selectScene(const std::string &scenePath) {
+    m_scenePath = scenePath;
+    m_updateScene = true;
 }

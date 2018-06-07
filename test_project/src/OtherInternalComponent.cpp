@@ -15,7 +15,7 @@ OtherInternalComponent::OtherInternalComponent() {
     events()->subscribe([this](UpdateEvent) {
         int value = entityPtr()->component<InternalComponent>()->value();
         LOGI("value() => %d", value);
-        entityPtr()->component<InternalComponent>()->setValue(value - 1);
+        entityPtr()->component<InternalComponent>()->setValue(value + 1);
     });
 
     events()->subscribe([](InitEvent) {

@@ -1,0 +1,6 @@
+{
+    "components" : [
+        {"type" : "flappy::InternalComponent", "value": -200},
+        {"type":"flappy::OtherInternalComponent"}
+    ]
+}
