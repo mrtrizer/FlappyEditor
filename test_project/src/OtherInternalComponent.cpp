@@ -13,8 +13,8 @@ OtherInternalComponent::OtherInternalComponent() {
     });
 
     events()->subscribe([this](UpdateEvent) {
-        int value = entityPtr()->component<InternalComponent>()->getValue();
-        LOGI("getValue() => %d", value);
+        int value = entityPtr()->component<InternalComponent>()->value();
+        LOGI("value() => %d", value);
         entityPtr()->component<InternalComponent>()->setValue(value + 1);
     });
 

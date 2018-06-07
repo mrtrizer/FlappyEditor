@@ -58,7 +58,7 @@ int main(int argc, char** argv) {
         // Editor initialization
         auto editor = sceneEntity->createComponent<EditorManager>(argv[1]);
         auto jsonTree = nlohmann::json::parse("{\"components\":["
-                                              "{\"type\":\"flappy::InternalComponent\", \"setValue\": 700},"
+                                              "{\"type\":\"flappy::InternalComponent\", \"value\": 700},"
                                               "{\"type\":\"flappy::OtherInternalComponent\"}"
                                               "]}");
         editor->projectManager()->loadFromJson(jsonTree);

@@ -64,8 +64,18 @@ public:
         : m_setter(setter)
         , m_getter(getter)
     {}
-    void setValue(rttr::variant variant, const std::string& value);
-    std::string getValue(rttr::variant variant);
+
+    void setValue(rttr::variant variant, const std::string& value) {
+        auto argumentInfos = m_setter.get_parameter_infos();
+        std::vector<rttr::argument> arguments;
+        if (argumentInfos.begin()->get_type() == rttr::type::get<int>())
+            arguments.push_back(rttr::argument(json::parse(value).get<int>()));
+        m_setter.invoke_variadic(variant, arguments);
+    }
+    std::string getValue(rttr::variant variant) {
+        auto result = m_getter.invoke(variant);
+        return result.to_string();
+    }
 private:
     rttr::method m_setter;
     rttr::method m_getter;
@@ -117,18 +127,11 @@ static std::shared_ptr<Entity> loadEntity(const json& jsonEntity) {
 
                 for (auto fieldIter = jsonComponent.begin(); fieldIter != jsonComponent.end(); fieldIter++) {
                     if (fieldIter.key() != "type") {
-                        LOGI("method: %s", fieldIter.key().c_str());
-                        int value = fieldIter.value().get<int>();
-
-                        auto method = componentType.get_method(fieldIter.key());
-                        auto args = method.get_parameter_infos();
-                        for (auto arg : args) {
-                            LOGI("arg: %s", arg.get_type().get_name().to_string().c_str());
+                        auto propertyIter = properties.find(fieldIter.key());
+                        if (propertyIter != properties.end()) {
+                            propertyIter->second.setValue(componentPointer, fieldIter.value().dump());
+                            LOGI("Property: %s", propertyIter->second.getValue(componentPointer).c_str());
                         }
-
-                        std::vector<rttr::argument> arguments;
-                        arguments.push_back(rttr::argument(value));
-                        method.invoke_variadic(componentPointer, arguments);
                     }
                 }
             }
