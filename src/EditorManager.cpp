@@ -1,5 +1,6 @@
 #include "EditorManager.h"
 
+#include <atomic>
 #include <Entity.h>
 #include <IFileMonitorManager.h>
 #include <process.hpp>
@@ -8,6 +9,23 @@
 
 using namespace flappy;
 using namespace TinyProcessLib;
+
+std::atomic<bool> flappyBuildStarted;
+
+void runFlappyBuild(const std::string& projectPath) {
+    std::thread flappyBuildThread ([projectPath]() {
+        flappyBuildStarted = true;
+        Process process("/usr/local/bin/flappy build cmake +editor", projectPath, [](const char *bytes, size_t n) {
+                std::cout << std::string(bytes, n);
+            }, [](const char *bytes, size_t n) {
+                std::cout << std::string(bytes, n);
+            });
+        flappyBuildStarted = false;
+        auto exit_status=process.get_exit_status();
+        std::cout << "flappy build returned: " << exit_status << " (" << (exit_status==0?"success":"failure") << ")" << std::endl;
+    });
+    flappyBuildThread.detach();
+}
 
 EditorManager::EditorManager(const std::string& projectPath)
 {
@@ -20,12 +38,21 @@ EditorManager::EditorManager(const std::string& projectPath)
         if (manager<IFileMonitorManager>()->exists(libraryPath)) {
             m_projectRoot->createComponent<ProjectManager>(projectPath);
         } else {
-            Process process("flappy build cmake +editor", projectPath, [](const char *bytes, size_t n) {
+            runFlappyBuild(projectPath);
+        }
+        std::thread fsWatchThread ([projectPath]() {
+            Process process("/usr/local/bin/fswatch ./src ./res_src", projectPath, [projectPath](const char *bytes, size_t n) {
+                    if (!flappyBuildStarted) {
+                        runFlappyBuild(projectPath);
+                    }
                     std::cout << std::string(bytes, n);
                 }, [](const char *bytes, size_t n) {
                     std::cout << std::string(bytes, n);
                 });
-        }
+            auto exit_status=process.get_exit_status();
+            std::cout << "fswatch returned: " << exit_status << " (" << (exit_status==0?"success":"failure") << ")" << std::endl;
+        });
+        fsWatchThread.detach();
     });
 
     events()->subscribeAll([this] (const EventHandle& eventHandle) {
