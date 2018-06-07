@@ -12,6 +12,7 @@ using namespace TinyProcessLib;
 
 std::atomic<bool> flappyBuildStarted;
 
+// TODO: Find crossplatform solution
 static std::string bashify(const std::string command) {
     std::stringstream ss;
     ss << "/bin/bash -c \"source ~/.bashrc;" << command << '\"';
@@ -33,6 +34,7 @@ static void runFlappyBuild(const std::string& projectPath, const std::string& sc
     flappyBuildThread.detach();
 }
 
+// TODO: Implement process as a class with possibility to kill it and set callbacks
 static void runProcess(const std::string& projectPath, const std::string& execPath, std::function<void(const char *bytes, size_t n)> callback) {
     std::thread fsWatchThread ([projectPath, execPath, callback]() {
         Process process(bashify(execPath), projectPath, callback,
@@ -49,6 +51,7 @@ EditorManager::EditorManager(const std::string& projectPath)
 {
     addDependency(IFileMonitorManager::id());
 
+    // FIXME: Search actual location of library
     auto libraryPath = projectPath + "/generated/cmake/build/libTestProject.dylib";
 
     events()->subscribe([this, libraryPath, projectPath](InitEvent) {

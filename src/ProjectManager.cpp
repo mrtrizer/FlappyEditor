@@ -16,6 +16,7 @@
 using namespace flappy;
 using json = nlohmann::json;
 
+// TODO: Move Property to a separate file
 class Property {
 public:
     Property(rttr::method setter, rttr::method getter)
@@ -47,6 +48,7 @@ static std::vector<rttr::method> findMethods(rttr::type componentType, std::stri
     return {};
 }
 
+// TODO: Make a constructor of PropertyList class
 static std::unordered_map<std::string, Property> scanProperties(rttr::type componentType) {
     std::unordered_map<std::string, Property> properties;
     for (auto method : componentType.get_methods()) {
