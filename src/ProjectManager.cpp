@@ -32,7 +32,7 @@ ProjectManager::ProjectManager(const std::string& projectPath)
     });
 
     events()->subscribeAll([this] (const EventHandle& eventHandle) {
-        if (eventHandle.id() != GetTypeId<EventHandle, EventHandle>::value())
+        if (m_root && eventHandle.id() != GetTypeId<EventHandle, EventHandle>::value())
             m_root->events()->post(eventHandle);
     });
 

@@ -12,10 +12,16 @@ using namespace TinyProcessLib;
 
 std::atomic<bool> flappyBuildStarted;
 
-void runFlappyBuild(const std::string& projectPath) {
+static std::string bashify(const std::string command) {
+    std::stringstream ss;
+    ss << "/bin/bash -c \"source ~/.bashrc;" << command << '\"';
+    return ss.str();
+}
+
+static void runFlappyBuild(const std::string& projectPath) {
     std::thread flappyBuildThread ([projectPath]() {
         flappyBuildStarted = true;
-        Process process("/usr/local/bin/flappy build cmake +editor", projectPath, [](const char *bytes, size_t n) {
+        Process process(bashify("flappy build cmake +editor"), projectPath, [](const char *bytes, size_t n) {
                 std::cout << std::string(bytes, n);
             }, [](const char *bytes, size_t n) {
                 std::cout << std::string(bytes, n);
@@ -41,7 +47,7 @@ EditorManager::EditorManager(const std::string& projectPath)
             runFlappyBuild(projectPath);
         }
         std::thread fsWatchThread ([projectPath]() {
-            Process process("/usr/local/bin/fswatch ./src ./res_src", projectPath, [projectPath](const char *bytes, size_t n) {
+            Process process(bashify("fswatch ./src ./res_src"), projectPath, [projectPath](const char *bytes, size_t n) {
                     if (!flappyBuildStarted) {
                         runFlappyBuild(projectPath);
                     }
