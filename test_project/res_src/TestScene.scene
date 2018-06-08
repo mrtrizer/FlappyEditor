@@ -2,7 +2,7 @@
     "components" : [
         {"type" : "flappy::InternalComponent", "value": -200},
         {"type":"flappy::OtherInternalComponent"},
-	{"type":"flappy::TransformComponent"},
-        {"type":"flappy::TextComponent", "text":"Hello, world!"}
+	    {"type":"flappy::TransformComponent"},
+        {"type":"flappy::TextComponent", "fontResPath": "irohamaru-mikami-Medium", "text":"Hello, world 1!"}
     ]
 }

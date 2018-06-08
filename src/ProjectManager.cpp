@@ -1,14 +1,21 @@
 #include "ProjectManager.h"
 
 #include <Entity.h>
-#include <IFileMonitorManager.h>
 
 #include <StdFileLoadManager.h>
 #include <ResManager.h>
 #include <SpriteRes.h>
+#include <GLTextureResFactory.h>
 #include <SpriteResFactory.h>
 #include <GLRenderElementFactory.h>
+#include <GLShaderResFactory.h>
 #include <TextureRes.h>
+#include <FontRes.h>
+#include <FontResFactory.h>
+#include <GlyphSheetRes.h>
+#include <GlyphSheetResFactory.h>
+#include <Sdl2RgbaBitmapResFactory.h>
+#include <Sdl2RgbaBitmapRes.h>
 #include <StdFileMonitorManager.h>
 #include <ResRepositoryManager.h>
 #include <DefaultResFactory.h>
@@ -28,6 +35,7 @@ public:
     void setValue(rttr::variant variant, const std::string& value) {
         auto argumentInfos = m_setter.get_parameter_infos();
         std::vector<rttr::argument> arguments;
+        std::string tmpStackStr;
         if (argumentInfos.begin()->get_type() == rttr::type::get<int>())
             arguments.push_back(rttr::argument(json::parse(value).get<int>()));
         else if (argumentInfos.begin()->get_type() == rttr::type::get<float>())
@@ -36,8 +44,10 @@ public:
             arguments.push_back(rttr::argument(json::parse(value).get<double>()));
         else if (argumentInfos.begin()->get_type() == rttr::type::get<bool>())
             arguments.push_back(rttr::argument(json::parse(value).get<bool>()));
-        else if (argumentInfos.begin()->get_type() == rttr::type::get<std::string>())
-            arguments.push_back(rttr::argument(json::parse(value).get<std::string>()));
+        else if (argumentInfos.begin()->get_type() == rttr::type::get<std::string>()) {
+            tmpStackStr = json::parse(value).get<std::string>();
+            arguments.push_back(rttr::argument(tmpStackStr));
+        }
         // TODO: Handle enums
         // TODO: Handle pointers
         // TODO: Handle serializable structures
@@ -45,7 +55,12 @@ public:
     }
     std::string getValue(rttr::variant variant) {
         auto result = m_getter.invoke(variant);
-        return result.to_string();
+        auto type = result.get_type();
+        // FIXME: Spike to represent string in json format
+        if (type == rttr::type::get<std::string>())
+            return "\"" + result.to_string() + "\"";
+        else
+            return result.to_string();
     }
 private:
     rttr::method m_setter;
@@ -85,19 +100,30 @@ ProjectManager::ProjectManager(const std::string& projectPath)
     // TODO: Compose correct path to the lib
     auto libraryPath = projectPath + "/generated/cmake/build/libTestProject.dylib";
 
-    addDependency(IFileMonitorManager::id());
-    addDependency(RenderManager::id());
-
     events()->subscribe([this, libraryPath, projectPath](InitEvent) {
         // TODO: Compose correct path to resources
-
+        entity()->createComponent<ResRepositoryManager>(projectPath + "/generated/cmake/resources");
+        entity()->createComponent<TextResFactory>();
+        entity()->createComponent<GLRenderElementFactory>();
+        entity()->createComponent<ResManager<JsonRes>> ();
+        entity()->createComponent<DefaultResFactory<JsonRes, JsonRes, TextRes>>();
+        entity()->createComponent<GLTextureResFactory>();
+        entity()->createComponent<Sdl2RgbaBitmapResFactory> ();
+        entity()->createComponent<GLShaderResFactory> ();
+        entity()->createComponent<ResManager<ShaderRes>> ();
+        entity()->createComponent<ResManager<IRgbaBitmapRes>> ();
+        entity()->createComponent<ResManager<TextureRes>> ();
+        entity()->createComponent<ResManager<TextRes>> ();
+        entity()->createComponent<ResManager<GlyphSheetRes>> ();
+        entity()->createComponent<GlyphSheetResFactory>();
+        entity()->createComponent<ResManager<FontRes>> ();
+        entity()->createComponent<FontResFactory>();
     });
 
     events()->subscribeAll([this] (const EventHandle& eventHandle) {
         // FIXME: Should check is event UpdateEvent
-        if (m_root && eventHandle.id() != GetTypeId<EventHandle, UpdateEvent>::value()) {
+        if (m_root && eventHandle.id() != GetTypeId<EventHandle, EventHandle>::value()) {
             m_root->events()->post(eventHandle);
-            LOGI("Forward: %s", eventHandle.id().name().c_str());
         }
     });
 
@@ -119,14 +145,28 @@ static json serializeEntity(const SafePtr<Entity>& entity) {
     for (auto component : components) {
         json jsonComponent = { { "type", component->componentId().name() } };
 
-        auto componentPointer = RTTRService::instance().toVariant(component);
-        auto componentType = componentPointer.get_type();
-        auto properties = scanProperties(componentType);
-        for (auto property : properties) {
-            jsonComponent[property.first] = json::parse(property.second.getValue(componentPointer));
-        }
+        try {
+            auto componentPointer = RTTRService::instance().toVariant(component);
+            auto componentType = componentPointer.get_type();
+            auto properties = scanProperties(componentType);
+            for (auto property : properties) {
+                try {
+                    std::string value = property.second.getValue(componentPointer);
+                    jsonComponent[property.first] = json::parse(value);
+                } catch (const std::exception& e) {
+                    LOGE("Can't parse. %s:%s. %s",
+                         component->componentId().name().c_str(),
+                         property.first.c_str(),
+                         e.what());
+                }
+            }
 
-        jsonComponents.push_back(jsonComponent);
+            jsonComponents.push_back(jsonComponent);
+        } catch (const std::exception& e) {
+            LOGE("Can't serialize. %s. %s",
+                 component->componentId().name().c_str(),
+                 e.what());
+        }
     }
     jsonEntity["components"] = jsonComponents;
     auto nextEntities = entity->findEntities([](const auto&){ return true; });
@@ -144,29 +184,37 @@ static std::shared_ptr<Entity> loadEntity(const json& jsonEntity) {
     auto componentsIter = jsonEntity.find("components");
     if (componentsIter != jsonEntity.end() && componentsIter->is_array()) {
         for (auto jsonComponent : *componentsIter) {
-            auto typeName = jsonComponent["type"].get<std::string>();
-            LOGI("type: %s", typeName.c_str());
-            auto typeId = TypeId<ComponentBase>(typeName);
-            auto component = RTTRService::instance().createComponent(typeId);
-            if (component != nullptr) {
-                // TODO: Setup properties
-                entity->addComponent(component);
+            try {
+                auto typeName = jsonComponent["type"].get<std::string>();
+                LOGI("type: %s", typeName.c_str());
+                auto typeId = TypeId<ComponentBase>(typeName);
+                auto component = RTTRService::instance().createComponent(typeId);
+                if (component != nullptr) {
+                    // TODO: Setup properties
+                    entity->addComponent(component);
 
-                auto componentPointer = RTTRService::instance().toVariant(component);
-                auto componentType = componentPointer.get_type();
-                auto properties = scanProperties(componentType);
-                for (auto propertyPair : properties)
-                    LOGI("property: %s", propertyPair.first.c_str());
+                    auto componentPointer = RTTRService::instance().toVariant(component);
+                    auto componentType = componentPointer.get_type();
+                    auto properties = scanProperties(componentType);
+                    for (auto propertyPair : properties)
+                        LOGI("property: %s", propertyPair.first.c_str());
 
-                for (auto fieldIter = jsonComponent.begin(); fieldIter != jsonComponent.end(); fieldIter++) {
-                    if (fieldIter.key() != "type") {
-                        auto propertyIter = properties.find(fieldIter.key());
-                        if (propertyIter != properties.end()) {
-                            propertyIter->second.setValue(componentPointer, fieldIter.value().dump());
-                            LOGI("Property: %s", propertyIter->second.getValue(componentPointer).c_str());
+                    for (auto fieldIter = jsonComponent.begin(); fieldIter != jsonComponent.end(); fieldIter++) {
+                        try {
+                            if (fieldIter.key() != "type") {
+                                auto propertyIter = properties.find(fieldIter.key());
+                                if (propertyIter != properties.end()) {
+                                    propertyIter->second.setValue(componentPointer, fieldIter.value().dump());
+                                    LOGI("Property: %s", propertyIter->second.getValue(componentPointer).c_str());
+                                }
+                            }
+                        } catch (const std::exception& e) {
+                            LOGE("Can't parse. %s", e.what());
                         }
                     }
                 }
+            } catch (const std::exception& e) {
+                LOGE("Can't create component. %s", e.what());
             }
         }
     }
@@ -183,27 +231,21 @@ static std::shared_ptr<Entity> loadEntity(const json& jsonEntity) {
 void ProjectManager::reload(const std::string& libraryPath) {
     if (m_root) {
         m_serializedTree = serializeEntity(m_root);
+        LOGE("Serialized: %s", m_serializedTree.dump().c_str());
         m_root = nullptr;
     }
     m_loaded = false;
     try {
         RTTRService::instance().loadLibrary(libraryPath);
-        m_root = loadEntity(m_serializedTree);
+        loadFromJson(m_serializedTree);
         m_loaded = true;
-    } catch (const std::exception&) {
-
+    } catch (const std::exception& e) {
+        LOGE("Can't load. %s", e.what());
     }
 }
 
 void ProjectManager::loadFromJson(const json& jsonTree) {
     m_root = loadEntity(jsonTree);
-
-    m_root->createComponent<ResRepositoryManager>(m_projectPath + "/generated/cmake/resources");
-    m_root->createComponent<StdFileMonitorManager>();
-    m_root->createComponent<StdFileLoadManager>();
-    m_root->createComponent<TextResFactory>();
-    m_root->createComponent<GLRenderElementFactory>();
-    m_root->createComponent<ResManager<TextRes>> ();
 
     for (auto managerPair : managers()) {
         LOGI("ProjectManager Try send: %s", managerPair.second->componentId().name().c_str());

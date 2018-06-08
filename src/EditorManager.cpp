@@ -104,8 +104,11 @@ EditorManager::EditorManager(const std::string& projectPath)
         if (fileMonitor->exists(fullScenePath) && (fileMonitor->changed(fullScenePath) || m_updateScene)) {
             auto sceneFileText = manager<IFileLoadManager>()->loadTextFile(fullScenePath);
             auto jsonTree = nlohmann::json::parse(sceneFileText);
-            projectManager()->loadFromJson(jsonTree);
-            m_updateScene = false;
+            // FIXME: Useless check. Should work without it
+            if (projectManager()) {
+                projectManager()->loadFromJson(jsonTree);
+                m_updateScene = false;
+            }
         }
     });
 

@@ -1,6 +1,7 @@
 #include "OtherInternalComponent.h"
 
 #include <Entity.h>
+#include <TextComponent.h>
 
 #include "./InternalComponent.h"
 
@@ -14,8 +15,9 @@ OtherInternalComponent::OtherInternalComponent() {
 
     events()->subscribe([this](UpdateEvent) {
         int value = entityPtr()->component<InternalComponent>()->value();
-        LOGI("value() => %d", value);
-        entityPtr()->component<InternalComponent>()->setValue(value + 1);
+        //LOGI("value() => %d", value);
+        entityPtr()->component<InternalComponent>()->setValue(value + 5);
+        entityPtr()->component<TextComponent>()->setText(std::to_string(entityPtr()->component<InternalComponent>()->value()));
     });
 
     events()->subscribe([](InitEvent) {
