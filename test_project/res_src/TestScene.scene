@@ -1,6 +1,8 @@
 {
     "components" : [
         {"type" : "flappy::InternalComponent", "value": -200},
-        {"type":"flappy::OtherInternalComponent"}
+        {"type":"flappy::OtherInternalComponent"},
+	{"type":"flappy::TransformComponent"},
+        {"type":"flappy::TextComponent", "text":"Hello, world!"}
     ]
 }

@@ -3,6 +3,9 @@
     "modules": [
         {
             "path":"../../FlappyEngine/modules/RTTRGenerator"
+        },
+        {
+            "path":"../../FlappyEngine/modules/TextComponents"
         }
     ],
     "cxx":{

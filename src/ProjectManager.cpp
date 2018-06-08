@@ -29,6 +29,17 @@ public:
         std::vector<rttr::argument> arguments;
         if (argumentInfos.begin()->get_type() == rttr::type::get<int>())
             arguments.push_back(rttr::argument(json::parse(value).get<int>()));
+        else if (argumentInfos.begin()->get_type() == rttr::type::get<float>())
+            arguments.push_back(rttr::argument(json::parse(value).get<float>()));
+        else if (argumentInfos.begin()->get_type() == rttr::type::get<double>())
+            arguments.push_back(rttr::argument(json::parse(value).get<double>()));
+        else if (argumentInfos.begin()->get_type() == rttr::type::get<bool>())
+            arguments.push_back(rttr::argument(json::parse(value).get<bool>()));
+        else if (argumentInfos.begin()->get_type() == rttr::type::get<std::string>())
+            arguments.push_back(rttr::argument(json::parse(value).get<std::string>()));
+        // TODO: Handle enums
+        // TODO: Handle pointers
+        // TODO: Handle serializable structures
         m_setter.invoke_variadic(variant, arguments);
     }
     std::string getValue(rttr::variant variant) {
@@ -69,11 +80,13 @@ static std::unordered_map<std::string, Property> scanProperties(rttr::type compo
 ProjectManager::ProjectManager(const std::string& projectPath)
     : m_root(std::make_shared<Entity>())
 {
+    // TODO: Compose correct path to the lib
     auto libraryPath = projectPath + "/generated/cmake/build/libTestProject.dylib";
 
     addDependency(IFileMonitorManager::id());
 
     events()->subscribe([this, libraryPath, projectPath](InitEvent) {
+        // TODO: Compose correct path to resources
         entity()->createComponent<ResRepositoryManager>(projectPath + "/generated/cmake/resources");
         entity()->createComponent<StdFileMonitorManager>();
         entity()->createComponent<StdFileLoadManager>();
