@@ -7,6 +7,7 @@
 #include <ResManager.h>
 #include <SpriteRes.h>
 #include <SpriteResFactory.h>
+#include <GLRenderElementFactory.h>
 #include <TextureRes.h>
 #include <StdFileMonitorManager.h>
 #include <ResRepositoryManager.h>
@@ -79,24 +80,25 @@ static std::unordered_map<std::string, Property> scanProperties(rttr::type compo
 
 ProjectManager::ProjectManager(const std::string& projectPath)
     : m_root(std::make_shared<Entity>())
+    , m_projectPath(projectPath)
 {
     // TODO: Compose correct path to the lib
     auto libraryPath = projectPath + "/generated/cmake/build/libTestProject.dylib";
 
     addDependency(IFileMonitorManager::id());
+    addDependency(RenderManager::id());
 
     events()->subscribe([this, libraryPath, projectPath](InitEvent) {
         // TODO: Compose correct path to resources
-        entity()->createComponent<ResRepositoryManager>(projectPath + "/generated/cmake/resources");
-        entity()->createComponent<StdFileMonitorManager>();
-        entity()->createComponent<StdFileLoadManager>();
-        entity()->createComponent<TextResFactory>();
-        entity()->createComponent<ResManager<TextRes>> ();
+
     });
 
     events()->subscribeAll([this] (const EventHandle& eventHandle) {
-        if (m_root && eventHandle.id() != GetTypeId<EventHandle, EventHandle>::value())
+        // FIXME: Should check is event UpdateEvent
+        if (m_root && eventHandle.id() != GetTypeId<EventHandle, UpdateEvent>::value()) {
             m_root->events()->post(eventHandle);
+            LOGI("Forward: %s", eventHandle.id().name().c_str());
+        }
     });
 
     events()->subscribe([this, libraryPath] (const UpdateEvent&) {
@@ -174,6 +176,7 @@ static std::shared_ptr<Entity> loadEntity(const json& jsonEntity) {
             entity->addEntity(loadEntity(nextJsonEntity));
         }
     }
+
     return entity;
 }
 
@@ -194,6 +197,18 @@ void ProjectManager::reload(const std::string& libraryPath) {
 
 void ProjectManager::loadFromJson(const json& jsonTree) {
     m_root = loadEntity(jsonTree);
+
+    m_root->createComponent<ResRepositoryManager>(m_projectPath + "/generated/cmake/resources");
+    m_root->createComponent<StdFileMonitorManager>();
+    m_root->createComponent<StdFileLoadManager>();
+    m_root->createComponent<TextResFactory>();
+    m_root->createComponent<GLRenderElementFactory>();
+    m_root->createComponent<ResManager<TextRes>> ();
+
+    for (auto managerPair : managers()) {
+        LOGI("ProjectManager Try send: %s", managerPair.second->componentId().name().c_str());
+        m_root->events()->post(ManagerAddedEvent(managerPair.second));
+    }
 }
 
 nlohmann::json ProjectManager::saveToJson() {

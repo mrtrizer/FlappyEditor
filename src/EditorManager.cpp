@@ -57,6 +57,12 @@ EditorManager::EditorManager(const std::string& projectPath)
 
     events()->subscribe([this, libraryPath, projectPath](InitEvent) {
         m_projectRoot = std::make_shared<Entity>();
+
+        for (auto managerPair : managers()) {
+            LOGI("EditorManager Try send: %s", managerPair.second->componentId().name().c_str());
+            m_projectRoot->events()->post(ManagerAddedEvent(managerPair.second));
+        }
+
         if (manager<IFileMonitorManager>()->exists(libraryPath)) {
             m_projectRoot->createComponent<ProjectManager>(projectPath);
         } else {
