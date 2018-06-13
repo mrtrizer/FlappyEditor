@@ -16,7 +16,7 @@ OtherInternalComponent::OtherInternalComponent() {
     events()->subscribe([this](UpdateEvent) {
         int value = entityPtr()->component<InternalComponent>()->value();
         //LOGI("value() => %d", value);
-        entityPtr()->component<InternalComponent>()->setValue(value + 5);
+        entityPtr()->component<InternalComponent>()->setValue(value - 100);
         entityPtr()->component<TextComponent>()->setText(std::to_string(entityPtr()->component<InternalComponent>()->value()));
     });
 
