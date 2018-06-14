@@ -104,7 +104,6 @@ ProjectManager::ProjectManager(const std::string& projectPath)
         // TODO: Compose correct path to resources
         entity()->createComponent<ResRepositoryManager>(projectPath + "/generated/cmake/resources");
         entity()->createComponent<TextResFactory>();
-        entity()->createComponent<GLRenderElementFactory>();
         entity()->createComponent<ResManager<JsonRes>> ();
         entity()->createComponent<DefaultResFactory<JsonRes, JsonRes, TextRes>>();
         entity()->createComponent<GLTextureResFactory>();
@@ -118,11 +117,12 @@ ProjectManager::ProjectManager(const std::string& projectPath)
         entity()->createComponent<GlyphSheetResFactory>();
         entity()->createComponent<ResManager<FontRes>> ();
         entity()->createComponent<FontResFactory>();
+        entity()->createComponent<GLRenderElementFactory>();
     });
 
     events()->subscribeAll([this] (const EventHandle& eventHandle) {
         // FIXME: Should check is event UpdateEvent
-        if (m_root && eventHandle.id() != GetTypeId<EventHandle, EventHandle>::value()) {
+        if (m_root && eventHandle.id() != GetTypeId<EventHandle, InitEvent>::value()) {
             m_root->events()->post(eventHandle);
         }
     });

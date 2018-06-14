@@ -83,7 +83,7 @@ EditorManager::EditorManager(const std::string& projectPath)
     events()->subscribeAll([this] (const EventHandle& eventHandle) {
         if (!isInitialized())
             return;
-        if (eventHandle.id() != GetTypeId<EventHandle, EventHandle>::value())
+        if (eventHandle.id() != GetTypeId<EventHandle, InitEvent>::value())
             m_projectRoot->events()->post(eventHandle);
     });
 
