@@ -68,16 +68,16 @@ EditorManager::EditorManager(const std::string& projectPath)
         } else {
             runFlappyBuild(projectPath, "build");
         }
-        runProcess(projectPath, "fswatch ./src ./flappy_conf", [projectPath](const char *bytes, size_t n) {
-            if (!flappyBuildStarted)
-                runFlappyBuild(projectPath, "build");
-            std::cout << std::string(bytes, n);
-        });
-        runProcess(projectPath, "fswatch ./res_src", [projectPath](const char *bytes, size_t n) {
-            if (!flappyBuildStarted)
-                runFlappyBuild(projectPath, "pack_res");
-            std::cout << std::string(bytes, n);
-        });
+//        runProcess(projectPath, "fswatch ./src ./flappy_conf", [projectPath](const char *bytes, size_t n) {
+//            if (!flappyBuildStarted)
+//                runFlappyBuild(projectPath, "build");
+//            std::cout << std::string(bytes, n);
+//        });
+//        runProcess(projectPath, "fswatch ./res_src", [projectPath](const char *bytes, size_t n) {
+//            if (!flappyBuildStarted)
+//                runFlappyBuild(projectPath, "pack_res");
+//            std::cout << std::string(bytes, n);
+//        });
     });
 
     events()->subscribeAll([this] (const EventHandle& eventHandle) {
