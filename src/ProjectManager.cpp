@@ -128,12 +128,8 @@ ProjectManager::ProjectManager(const std::string& projectPath)
     });
 
     events()->subscribe([this, libraryPath] (const UpdateEvent&) {
-        if (!m_loaded)
-            reload(libraryPath);
-    });
 
-    RTTRService::instance().loadLibrary(libraryPath);
-    m_loaded = true;
+    });
 }
 
 static json serializeEntity(const SafePtr<Entity>& entity) {
@@ -228,21 +224,6 @@ static std::shared_ptr<Entity> loadEntity(const json& jsonEntity) {
     return entity;
 }
 
-void ProjectManager::reload(const std::string& libraryPath) {
-    if (m_root) {
-        m_serializedTree = serializeEntity(m_root);
-        LOGE("Serialized: %s", m_serializedTree.dump().c_str());
-        m_root = nullptr;
-    }
-    m_loaded = false;
-    try {
-        RTTRService::instance().loadLibrary(libraryPath);
-        loadFromJson(m_serializedTree);
-        m_loaded = true;
-    } catch (const std::exception& e) {
-        LOGE("Can't load. %s", e.what());
-    }
-}
 
 void ProjectManager::loadFromJson(const json& jsonTree) {
     m_root = loadEntity(jsonTree);

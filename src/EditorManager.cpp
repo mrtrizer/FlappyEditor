@@ -63,21 +63,18 @@ EditorManager::EditorManager(const std::string& projectPath)
             m_projectRoot->events()->post(ManagerAddedEvent(managerPair.second));
         }
 
-        if (manager<IFileMonitorManager>()->exists(libraryPath)) {
-            m_projectRoot->createComponent<ProjectManager>(projectPath);
-        } else {
-            runFlappyBuild(projectPath, "build");
-        }
-//        runProcess(projectPath, "fswatch ./src ./flappy_conf", [projectPath](const char *bytes, size_t n) {
-//            if (!flappyBuildStarted)
-//                runFlappyBuild(projectPath, "build");
-//            std::cout << std::string(bytes, n);
-//        });
-//        runProcess(projectPath, "fswatch ./res_src", [projectPath](const char *bytes, size_t n) {
-//            if (!flappyBuildStarted)
-//                runFlappyBuild(projectPath, "pack_res");
-//            std::cout << std::string(bytes, n);
-//        });
+        runFlappyBuild(projectPath, "build");
+
+        runProcess(projectPath, "fswatch ./src ./flappy_conf", [projectPath](const char *bytes, size_t n) {
+            if (!flappyBuildStarted)
+                runFlappyBuild(projectPath, "build");
+            std::cout << std::string(bytes, n);
+        });
+        runProcess(projectPath, "fswatch ./res_src", [projectPath](const char *bytes, size_t n) {
+            if (!flappyBuildStarted)
+                runFlappyBuild(projectPath, "pack_res");
+            std::cout << std::string(bytes, n);
+        });
     });
 
     events()->subscribeAll([this] (const EventHandle& eventHandle) {
@@ -90,30 +87,44 @@ EditorManager::EditorManager(const std::string& projectPath)
     events()->subscribe([this, projectPath, libraryPath](UpdateEvent) {
         auto fileMonitor = manager<IFileMonitorManager>();
         if (fileMonitor->exists(libraryPath) && fileMonitor->changed(libraryPath)) {
-            try {
-                if (m_projectRoot->findComponent<ProjectManager>() == nullptr)
-                    m_projectRoot->createComponent<ProjectManager>(libraryPath);
-                else
-                    m_projectRoot->findComponent<ProjectManager>()->reload(libraryPath);
-            } catch (const std::exception& e) {
-                LOGE("%s", e.what());
-            }
+            m_libraryLoaded = false;
         }
-
         std::string fullScenePath = projectPath + "/" + m_scenePath;
-        if (fileMonitor->exists(fullScenePath) && (fileMonitor->changed(fullScenePath) || m_updateScene)) {
-            auto sceneFileText = manager<IFileLoadManager>()->loadTextFile(fullScenePath);
-            auto jsonTree = nlohmann::json::parse(sceneFileText);
-            // FIXME: Useless check. Should work without it
-            if (projectManager()) {
-                projectManager()->loadFromJson(jsonTree);
-                m_updateScene = false;
+        if (m_sceneSelected) {
+            if (fileMonitor->exists(fullScenePath) && fileMonitor->changed(fullScenePath)) {
+                m_projectRoot.reset();
+                m_sceneLoaded = false;
+                m_sceneCreated = false;
             }
         }
+        if (!m_libraryLoaded) {
+            try {
+                m_projectRoot.reset();
+                m_sceneCreated = false;
+                RTTRService::instance().loadLibrary(libraryPath);
+                m_libraryLoaded = true;
+            } catch (const std::exception& e) {
+                LOGE("Can't load library. %s", e.what());
+            }
+        }
+        if (!m_sceneLoaded && m_sceneSelected) {
+            try {
+                auto sceneFileText = manager<IFileLoadManager>()->loadTextFile(fullScenePath);
+                m_serializedTree = nlohmann::json::parse(sceneFileText);
+                m_sceneLoaded = true;
+            } catch (const std::exception& e) {
+                LOGE("Can't load scene. %s", e.what());
+            }
+        }
+        if (m_libraryLoaded && m_sceneLoaded && !m_sceneCreated)
+            m_sceneCreated = createScene(projectPath, m_serializedTree);
     });
 
     events()->subscribe([this, libraryPath](DeinitEvent) {
         m_projectRoot.reset();
+        m_libraryLoaded = false;
+        m_sceneLoaded = false;
+        m_sceneCreated = false;
     });
 }
 
@@ -123,5 +134,20 @@ flappy::SafePtr<ProjectManager> EditorManager::projectManager() {
 
 void EditorManager::selectScene(const std::string &scenePath) {
     m_scenePath = scenePath;
-    m_updateScene = true;
+    m_sceneLoaded = false;
+    m_sceneSelected = true;
+}
+
+bool EditorManager::createScene(const std::string& projectPath, const nlohmann::json& jsonTree) {
+    try {
+        m_projectRoot = std::make_shared<Entity>();
+        for (auto managerPair : managers())
+            m_projectRoot->events()->post(ManagerAddedEvent(managerPair.second));
+        auto manager = m_projectRoot->createComponent<ProjectManager>(projectPath);
+        manager->loadFromJson(jsonTree);
+        return true;
+    } catch (const std::exception& e) {
+        LOGE("Can't load. %s", e.what());
+        return false;
+    }
 }
